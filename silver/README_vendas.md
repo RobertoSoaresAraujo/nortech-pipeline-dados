@@ -38,6 +38,17 @@ Databricks, `Run all`.
 - **`id_produto_chave` (upper+trim) criado no fato também**, espelhando a mesma chave já criada
   em `silver.produtos`, para o join da Gold funcionar independente da caixa do código.
 
+- **`vendas_2025` tinha 420 linhas exatamente duplicadas** (mesmo `id_pedido`+`item`, todos os
+  campos idênticos) — confirmado nos dados brutos, e coerente com o aviso do dicionário sobre
+  reprocessamento incremental sem controle de idempotência. Removidas com `dropDuplicates()`
+  logo após unir as 3 safras, **antes** da conversão cambial e do cálculo de receita. Sem essa
+  remoção, as 403 duplicatas em BRL contariam receita em dobro silenciosamente, e as 17 em USD
+  interagiriam de forma imprevisível com o join assíncrono de câmbio (a ordem das operações aqui
+  importa: dedup primeiro, cálculo depois).
+- **Grão do fato `safra+id_pedido+item` é único de verdade após a remoção de duplicatas** —
+  conferido em cada execução pela célula de reconciliação (bronze = válidas + rejeitadas +
+  duplicatas removidas, por safra).
+
 ## O que ainda falta (próximos notebooks)
 
 - Devoluções (R5) — reduzem a receita líquida na data da devolução, não na data da venda.

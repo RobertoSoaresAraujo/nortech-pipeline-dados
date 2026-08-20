@@ -196,6 +196,26 @@ df_vendas_raw = df_2024.unionByName(df_2025).unionByName(df_2026)
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Duplicidade exata (principalmente 2025)
+# MAGIC
+# MAGIC O dicionário avisa: a extração de `vendas_2025.csv` é feita por reprocessamento
+# MAGIC incremental do ERP, **sem controle de idempotência na origem** — ou seja, o mesmo
+# MAGIC pedido/item pode ter sido extraído mais de uma vez por engano. Remover isso ANTES da
+# MAGIC conversão cambial e do cálculo de receita é essencial: linha duplicada em BRL dobraria a
+# MAGIC receita silenciosamente, e em USD interagiria de forma imprevisível com o join de câmbio.
+# MAGIC `dropDuplicates()` sem argumento remove só linhas 100% idênticas em todas as colunas —
+# MAGIC não mexe em pedidos legítimos que apenas compartilham cliente/produto/data.
+
+# COMMAND ----------
+
+linhas_antes = df_vendas_raw.count()
+df_vendas_raw = df_vendas_raw.dropDuplicates()
+linhas_depois = df_vendas_raw.count()
+print(f"Linhas antes: {linhas_antes}  |  depois de remover duplicatas exatas: {linhas_depois}  |  removidas: {linhas_antes - linhas_depois}")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## R12 — separar registros inválidos (sem quantidade, sem valor ou sem data válida)
 # MAGIC
 # MAGIC Não entram no fato, mas vão para `silver.vendas_rejeitadas` com o motivo — nada some
@@ -334,6 +354,14 @@ df_validas.groupBy("safra").count().orderBy("safra").show()
 
 print("Linhas rejeitadas por safra:")
 df_rejeitadas.groupBy("safra").count().orderBy("safra").show()
+
+print("Reconciliação: bronze == válidas + rejeitadas + duplicatas removidas (deve fechar por safra):")
+for ano, tabela_bronze in [("2024", "vendas_2024"), ("2025", "vendas_2025"), ("2026", "vendas_2026")]:
+    n_bronze = bronze(tabela_bronze).count()
+    n_validas = df_validas.filter(F.col("safra") == ano).count()
+    n_rejeitadas = df_rejeitadas.filter(F.col("safra") == ano).count()
+    print(f"  {ano}: bronze={n_bronze}  válidas={n_validas}  rejeitadas={n_rejeitadas}  "
+          f"soma={n_validas + n_rejeitadas}  diferença(duplicatas removidas)={n_bronze - (n_validas + n_rejeitadas)}")
 
 print("Pedidos cancelados por safra (receita deve ser 0 em todos):")
 df_validas.filter(F.col("status_pedido") == "Cancelado").groupBy("safra").agg(
