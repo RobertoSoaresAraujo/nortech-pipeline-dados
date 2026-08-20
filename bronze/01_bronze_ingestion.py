@@ -13,6 +13,11 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install openpyxl
+# MAGIC dbutils.library.restartPython()
+
+# COMMAND ----------
+
 dbutils.widgets.text("catalog", "workspace", "Catálogo Unity Catalog")
 dbutils.widgets.text("raw_volume_path", "/Volumes/workspace/bronze/raw_files", "Caminho dos arquivos brutos no Volume")
 
