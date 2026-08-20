@@ -313,8 +313,24 @@ df_vendedores = (
         parse_flexible_date("data_desligamento").alias("data_desligamento"),
     )
     .withColumn("vendedor_ativo", F.col("data_desligamento").isNull())
+    .withColumn("id_vendedor_duplicado", F.count("id_vendedor").over(Window.partitionBy("id_vendedor")) > 1)
 )
 save_silver(df_vendedores, "vendedores")
+
+# COMMAND ----------
+
+print("id_vendedor duplicado — mesmo código, cadastros de pessoas diferentes (deveria ser raro/zero,")
+print("mas quando existe é sério: qualquer join por id_vendedor vira ambíguo para esse código):")
+df_vendedores.filter(F.col("id_vendedor_duplicado")).select(
+    "id_vendedor", "nome", "email_corporativo", "cargo", "data_admissao", "data_desligamento"
+).show(truncate=False)
+
+# Lista de códigos ambíguos, usada logo abaixo para propagar o alerta a carteira_historica
+# (e, mais adiante, a qualquer fato que referencie id_vendedor).
+ids_vendedor_duplicados = [
+    r["id_vendedor"]
+    for r in df_vendedores.filter(F.col("id_vendedor_duplicado")).select("id_vendedor").distinct().collect()
+]
 
 # COMMAND ----------
 
@@ -331,8 +347,17 @@ df_carteira = (
         F.to_date("vigencia_fim", "yyyy-MM-dd").alias("vigencia_fim"),
     )
     .withColumn("vigencia_aberta", F.col("vigencia_fim") == F.lit("9999-12-31"))
+    .withColumn(
+        "id_vendedor_ambiguo",
+        F.col("id_vendedor").isin(ids_vendedor_duplicados) if ids_vendedor_duplicados else F.lit(False),
+    )
 )
 save_silver(df_carteira, "carteira_historica")
+
+# COMMAND ----------
+
+print(f"Registros de carteira_historica com id_vendedor ambíguo (código {ids_vendedor_duplicados}):")
+df_carteira.filter(F.col("id_vendedor_ambiguo")).show(30, truncate=False)
 
 # COMMAND ----------
 
