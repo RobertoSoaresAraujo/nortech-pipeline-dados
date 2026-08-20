@@ -38,6 +38,12 @@ A Bronze precisa já ter rodado com sucesso (notebook `bronze/01_bronze_ingestio
 - **`vendedores.email_corporativo` e `seguranca_acessos.email` normalizados para minúsculo**:
   são a chave de ligação entre as duas tabelas (RLS), e e-mail não deveria ser case-sensitive
   para esse fim.
+- **`clientes.regiao` vazia foi inferida a partir da `uf`** em 34 linhas onde o campo veio
+  realmente em branco na origem (não era problema de grafia — confirmado nos dados brutos).
+  Como `uf` é descrito no dicionário como campo controlado e confiável, usamos a classificação
+  oficial de estados por região (IBGE) como fallback, em vez de deixar a região nula ou de
+  descartar essas linhas. A coluna `regiao_inferida_por_uf` sinaliza exatamente quais linhas
+  passaram por essa inferência, para não esconder a decisão.
 - **`clientes` guarda o valor original ao lado do valor tratado** (`segmento_original`,
   `regiao_original`, `situacao_original`, `data_cadastro_original`): permite auditar qualquer
   linha sem precisar voltar na Bronze, e é o que alimenta as células de validação do notebook.

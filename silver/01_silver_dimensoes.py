@@ -1,8 +1,4 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "5"
-# ///
 # MAGIC %md
 # MAGIC # Silver — Dimensões simples
 # MAGIC
@@ -87,6 +83,25 @@ REGIAO_MAP = {
 SITUACAO_MAP = {
     "a": "Ativo", "ativo": "Ativo", "inativo": "Inativo",
 }
+
+# uf é um campo controlado e confiável (conforme dicionário de dados) — usado como fallback
+# para inferir a região quando ela vem vazia na origem (34 linhas de clientes.csv, confirmado
+# nos dados brutos: não é problema de grafia, o campo está mesmo em branco).
+UF_TO_REGIAO = {
+    "AC": "Norte", "AP": "Norte", "AM": "Norte", "PA": "Norte", "RO": "Norte", "RR": "Norte", "TO": "Norte",
+    "AL": "Nordeste", "BA": "Nordeste", "CE": "Nordeste", "MA": "Nordeste", "PB": "Nordeste",
+    "PE": "Nordeste", "PI": "Nordeste", "RN": "Nordeste", "SE": "Nordeste",
+    "DF": "Centro-Oeste", "GO": "Centro-Oeste", "MT": "Centro-Oeste", "MS": "Centro-Oeste",
+    "ES": "Sudeste", "MG": "Sudeste", "RJ": "Sudeste", "SP": "Sudeste",
+    "PR": "Sul", "RS": "Sul", "SC": "Sul",
+}
+
+
+@F.udf(returnType=StringType())
+def regiao_from_uf(uf):
+    if uf is None:
+        return None
+    return UF_TO_REGIAO.get(str(uf).strip().upper())
 
 
 @F.udf(returnType=StringType())
@@ -321,7 +336,7 @@ df_clientes = (
         F.col("segmento").alias("segmento_original"),
         normalize_segmento("segmento").alias("segmento"),
         F.col("regiao").alias("regiao_original"),
-        normalize_regiao("regiao").alias("regiao"),
+        normalize_regiao("regiao").alias("regiao_mapeada"),
         F.upper(F.trim("uf")).alias("uf"),
         F.trim("cidade").alias("cidade"),
         F.col("data_cadastro").alias("data_cadastro_original"),
@@ -330,6 +345,9 @@ df_clientes = (
         F.col("situacao").alias("situacao_original"),
         normalize_situacao("situacao").alias("situacao"),
     )
+    .withColumn("regiao_inferida_por_uf", F.col("regiao_mapeada").isNull() & F.col("uf").isNotNull())
+    .withColumn("regiao", F.coalesce(F.col("regiao_mapeada"), regiao_from_uf(F.col("uf"))))
+    .drop("regiao_mapeada")
     .withColumn("cnpj_valido", F.length("cnpj_limpo") == 14)
     .withColumn("cnpj_duplicado", F.count("id_cliente").over(w_cnpj) > 1)
 )
@@ -345,8 +363,11 @@ save_silver(df_clientes, "clientes")
 print("Valores de segmento sem mapeamento (deveria ser 0 linhas):")
 df_clientes.filter(F.col("segmento").isNull()).select("id_cliente", "segmento_original").show(truncate=False)
 
-print("Valores de regiao sem mapeamento (deveria ser 0 linhas):")
-df_clientes.filter(F.col("regiao").isNull()).select("id_cliente", "regiao_original").show(truncate=False)
+print("Clientes com região inferida a partir da UF (fallback aplicado):")
+print(df_clientes.filter(F.col("regiao_inferida_por_uf")).count())
+
+print("Valores de regiao ainda sem mapeamento após o fallback por UF (deveria ser 0 linhas):")
+df_clientes.filter(F.col("regiao").isNull()).select("id_cliente", "regiao_original", "uf").show(truncate=False)
 
 print("Valores de situacao sem mapeamento (deveria ser 0 linhas):")
 df_clientes.filter(F.col("situacao").isNull()).select("id_cliente", "situacao_original").show(truncate=False)
