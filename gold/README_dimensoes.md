@@ -33,3 +33,13 @@ GitHub, arquivo dentro, `Pull` no Databricks). Confira o widget `catalog`, `Run 
   baixo dos panos — usar isso pra montar as linhas sentinela desalinharia os valores com o
   schema real silenciosamente (ex: o valor de `cargo` cairia na coluna errada). Corrigido
   construindo tuplas posicionais explícitas na ordem exata de `df_real.columns`.
+- **Bug pego rodando de verdade**: colunas booleanas derivadas de expressões como `isNull()`
+  (ex: `eh_matriz`) são inferidas pelo Spark como `NOT NULL` — a expressão nunca retorna nulo,
+  então o Spark marca assim no schema. Isso quebrava a criação da linha sentinela (que
+  propositalmente tem `None` nesses campos). Corrigido forçando `nullable=True` em todo o
+  schema antes de montar a sentinela.
+- **Aviso "No Partition Defined for Window operation" é esperado e inofensivo aqui.** A geração
+  de chave substituta via `row_number()` sem `partitionBy` ordena a tabela inteira numa única
+  partição — para os volumes desse projeto (poucas centenas a poucos milhares de linhas por
+  dimensão) isso não é problema. Numa dimensão de milhões de linhas, valeria trocar a estratégia
+  (ex: `monotonically_increasing_id()` combinada com um offset por partição).

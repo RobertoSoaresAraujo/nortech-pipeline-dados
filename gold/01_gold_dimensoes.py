@@ -25,6 +25,7 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{GOLD_SCHEMA}")
 
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from pyspark.sql.types import StructType, StructField
 
 
 def silver(table: str):
@@ -42,10 +43,14 @@ def com_sentinelas(df_real, sk_col, sentinelas: list[dict]):
     Cada sentinela é um dict só com os campos que fazem sentido preencher — os demais viram
     NULL. IMPORTANTE: construímos tuplas na ordem exata de df_real.columns, não usamos
     Row(**dict) — esse construtor reordena os campos alfabeticamente por baixo dos panos,
-    o que desalinharia silenciosamente os valores com o schema real."""
+    o que desalinharia silenciosamente os valores com o schema real.
+    Também forçamos nullable=True em todo campo do schema: colunas booleanas derivadas de
+    expressões como isNull() são inferidas como NOT NULL pelo Spark (a expressão nunca
+    retorna nulo), e o Spark recusa None nelas mesmo numa linha claramente sentinela."""
     colunas = df_real.columns
     linhas = [tuple(sent.get(c) for c in colunas) for sent in sentinelas]
-    df_sentinelas = spark.createDataFrame(linhas, schema=df_real.schema)
+    schema_nullable = StructType([StructField(f.name, f.dataType, True) for f in df_real.schema.fields])
+    df_sentinelas = spark.createDataFrame(linhas, schema=schema_nullable)
     return df_sentinelas.unionByName(df_real)
 
 # COMMAND ----------
