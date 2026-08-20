@@ -38,3 +38,6 @@ A Bronze precisa já ter rodado com sucesso (notebook `bronze/01_bronze_ingestio
 - **`vendedores.email_corporativo` e `seguranca_acessos.email` normalizados para minúsculo**:
   são a chave de ligação entre as duas tabelas (RLS), e e-mail não deveria ser case-sensitive
   para esse fim.
+- **`clientes` guarda o valor original ao lado do valor tratado** (`segmento_original`,
+  `regiao_original`, `situacao_original`, `data_cadastro_original`): permite auditar qualquer
+  linha sem precisar voltar na Bronze, e é o que alimenta as células de validação do notebook.

@@ -314,12 +314,16 @@ df_clientes = (
         F.trim("razao_social").alias("razao_social"),
         F.trim("cnpj").alias("cnpj"),
         F.regexp_replace(F.trim("cnpj"), r"[^0-9]", "").alias("cnpj_limpo"),
+        F.col("segmento").alias("segmento_original"),
         normalize_segmento("segmento").alias("segmento"),
+        F.col("regiao").alias("regiao_original"),
         normalize_regiao("regiao").alias("regiao"),
         F.upper(F.trim("uf")).alias("uf"),
         F.trim("cidade").alias("cidade"),
+        F.col("data_cadastro").alias("data_cadastro_original"),
         parse_flexible_date("data_cadastro").alias("data_cadastro"),
         F.nullif(F.trim("id_matriz"), F.lit("")).alias("id_matriz"),
+        F.col("situacao").alias("situacao_original"),
         normalize_situacao("situacao").alias("situacao"),
     )
     .withColumn("cnpj_valido", F.length("cnpj_limpo") == 14)
@@ -335,16 +339,16 @@ save_silver(df_clientes, "clientes")
 # COMMAND ----------
 
 print("Valores de segmento sem mapeamento (deveria ser 0 linhas):")
-df_clientes.filter(F.col("segmento").isNull()).select(df_clientes_raw.columns).show(truncate=False)
+df_clientes.filter(F.col("segmento").isNull()).select("id_cliente", "segmento_original").show(truncate=False)
 
 print("Valores de regiao sem mapeamento (deveria ser 0 linhas):")
-df_clientes.filter(F.col("regiao").isNull()).select(df_clientes_raw.columns).show(truncate=False)
+df_clientes.filter(F.col("regiao").isNull()).select("id_cliente", "regiao_original").show(truncate=False)
 
 print("Valores de situacao sem mapeamento (deveria ser 0 linhas):")
-df_clientes.filter(F.col("situacao").isNull()).select(df_clientes_raw.columns).show(truncate=False)
+df_clientes.filter(F.col("situacao").isNull()).select("id_cliente", "situacao_original").show(truncate=False)
 
 print("Datas de cadastro não reconhecidas (deveria ser 0 linhas):")
-df_clientes.filter(F.col("data_cadastro").isNull()).select(df_clientes_raw.columns).show(truncate=False)
+df_clientes.filter(F.col("data_cadastro").isNull()).select("id_cliente", "data_cadastro_original").show(truncate=False)
 
 print("CNPJs duplicados (mesmo CNPJ, mais de um id_cliente):")
 df_clientes.filter(F.col("cnpj_duplicado")).select("id_cliente", "cnpj_limpo", "razao_social").orderBy("cnpj_limpo").show(20, truncate=False)
