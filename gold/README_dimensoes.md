@@ -38,6 +38,13 @@ GitHub, arquivo dentro, `Pull` no Databricks). Confira o widget `catalog`, `Run 
   então o Spark marca assim no schema. Isso quebrava a criação da linha sentinela (que
   propositalmente tem `None` nesses campos). Corrigido forçando `nullable=True` em todo o
   schema antes de montar a sentinela.
+- **Achado real nos dados: matriz órfã.** `C00018` declara `id_matriz = C09999`, mas `C09999`
+  não existe como `id_cliente` em lugar nenhum da base (`9999` é um clássico código-placeholder
+  de sistema legado). A primeira versão da lógica mascarava isso: como o `COALESCE` caía no
+  nome do próprio `C00018` quando a matriz não era encontrada, parecia que ele era "sua própria
+  matriz" — o que é diferente de "não tem matriz declarada". Corrigido com uma flag
+  `matriz_orfa` explícita e um `nome_grupo_economico` que deixa claro que a matriz não foi
+  encontrada, em vez de mascarar com o nome da filial.
 - **Aviso "No Partition Defined for Window operation" é esperado e inofensivo aqui.** A geração
   de chave substituta via `row_number()` sem `partitionBy` ordena a tabela inteira numa única
   partição — para os volumes desse projeto (poucas centenas a poucos milhares de linhas por

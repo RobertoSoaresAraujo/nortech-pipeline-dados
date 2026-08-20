@@ -1,8 +1,4 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "5"
-# ///
 # MAGIC %md
 # MAGIC # Gold — Dimensões
 # MAGIC
@@ -86,8 +82,17 @@ df_clientes_enriquecido = (
     df_clientes_base
     .withColumn("id_grupo_economico", F.coalesce(F.col("id_matriz"), F.col("id_cliente")))
     .join(df_matriz_lookup, F.col("id_grupo_economico") == F.col("_id_matriz"), "left")
-    .withColumn("nome_grupo_economico", F.coalesce(F.col("_nome_matriz"), F.col("razao_social")))
     .withColumn("eh_matriz", F.col("id_matriz").isNull())
+    # id_matriz preenchido mas não encontrado em nenhum id_cliente = matriz órfã (achado real
+    # nos dados: C00018 -> C09999, que não existe). Sinalizado explicitamente — sem isso, o
+    # COALESCE abaixo faria a filial parecer "sua própria matriz" silenciosamente, o que é
+    # enganoso: ela TEM uma matriz declarada, só que não encontrada.
+    .withColumn("matriz_orfa", F.col("id_matriz").isNotNull() & F.col("_nome_matriz").isNull())
+    .withColumn(
+        "nome_grupo_economico",
+        F.when(F.col("matriz_orfa"), F.concat(F.lit("Matriz não encontrada ("), F.col("id_matriz"), F.lit(")")))
+        .otherwise(F.coalesce(F.col("_nome_matriz"), F.col("razao_social"))),
+    )
     .drop("_id_matriz", "_nome_matriz")
 )
 
@@ -209,3 +214,8 @@ print("dClientes — amostra do grupo econômico (matriz/filial achatado):")
 spark.table(f"{CATALOG}.{GOLD_SCHEMA}.dClientes").filter(F.col("id_matriz").isNotNull()).select(
     "id_cliente", "razao_social", "id_matriz", "id_grupo_economico", "nome_grupo_economico"
 ).show(10, truncate=False)
+
+print("dClientes — matriz órfã (id_matriz preenchido, mas matriz não existe na base):")
+spark.table(f"{CATALOG}.{GOLD_SCHEMA}.dClientes").filter(F.col("matriz_orfa")).select(
+    "id_cliente", "razao_social", "id_matriz", "nome_grupo_economico"
+).show(truncate=False)
