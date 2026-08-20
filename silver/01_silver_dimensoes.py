@@ -104,6 +104,23 @@ def regiao_from_uf(uf):
     return UF_TO_REGIAO.get(str(uf).strip().upper())
 
 
+# Padroniza capitalização de razão social (ex: "ECLIPSE GROUP LTDA" / "eclipse group ltda"
+# -> "Eclipse Group Ltda"), corrigindo siglas jurídicas que não seguem Title Case comum.
+RAZAO_SOCIAL_ACRONYM_FIX = {"Eireli": "EIRELI", "Me": "ME", "Epp": "EPP"}
+
+
+@F.udf(returnType=StringType())
+def standardize_razao_social(v):
+    if v is None:
+        return None
+    v = re.sub(r"\s+", " ", str(v).strip())
+    palavras = []
+    for w in v.split(" "):
+        base = w.title()
+        palavras.append(RAZAO_SOCIAL_ACRONYM_FIX.get(base, base))
+    return " ".join(palavras)
+
+
 @F.udf(returnType=StringType())
 def normalize_segmento(v):
     return SEGMENTO_MAP.get(_normalize_key(v))
@@ -330,7 +347,8 @@ df_clientes = (
     df_clientes_raw
     .select(
         F.trim("id_cliente").alias("id_cliente"),
-        F.trim("razao_social").alias("razao_social"),
+        F.trim("razao_social").alias("razao_social_original"),
+        standardize_razao_social("razao_social").alias("razao_social"),
         F.trim("cnpj").alias("cnpj"),
         F.regexp_replace(F.trim("cnpj"), r"[^0-9]", "").alias("cnpj_limpo"),
         F.col("segmento").alias("segmento_original"),
@@ -376,7 +394,7 @@ print("Datas de cadastro não reconhecidas (deveria ser 0 linhas):")
 df_clientes.filter(F.col("data_cadastro").isNull()).select("id_cliente", "data_cadastro_original").show(truncate=False)
 
 print("CNPJs duplicados (mesmo CNPJ, mais de um id_cliente):")
-df_clientes.filter(F.col("cnpj_duplicado")).select("id_cliente", "cnpj_limpo", "razao_social").orderBy("cnpj_limpo").show(20, truncate=False)
+df_clientes.filter(F.col("cnpj_duplicado")).select("id_cliente", "cnpj_limpo", "razao_social", "razao_social_original").orderBy("cnpj_limpo").show(20, truncate=False)
 
 # COMMAND ----------
 

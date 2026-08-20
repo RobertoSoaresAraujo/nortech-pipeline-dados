@@ -45,5 +45,11 @@ A Bronze precisa já ter rodado com sucesso (notebook `bronze/01_bronze_ingestio
   descartar essas linhas. A coluna `regiao_inferida_por_uf` sinaliza exatamente quais linhas
   passaram por essa inferência, para não esconder a decisão.
 - **`clientes` guarda o valor original ao lado do valor tratado** (`segmento_original`,
-  `regiao_original`, `situacao_original`, `data_cadastro_original`): permite auditar qualquer
-  linha sem precisar voltar na Bronze, e é o que alimenta as células de validação do notebook.
+  `regiao_original`, `situacao_original`, `data_cadastro_original`, `razao_social_original`):
+  permite auditar qualquer linha sem precisar voltar na Bronze, e é o que alimenta as células
+  de validação do notebook.
+- **`razao_social` padronizada em Title Case**, com correção de siglas jurídicas que não seguem
+  esse padrão (`EIRELI`, `ME`, `EPP` continuam em maiúsculas; `Ltda` e `S/A` já saem corretos do
+  Title Case padrão). Isso deixa o texto visualmente consistente para o dashboard, mas **não
+  resolve** o cadastro duplicado por CNPJ — continuam sendo dois `id_cliente` distintos,
+  propositalmente, pelo motivo explicado no ponto acima.
