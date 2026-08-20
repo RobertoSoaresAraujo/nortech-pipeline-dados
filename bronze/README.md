@@ -38,3 +38,5 @@ camada Silver — é lá que as regras R1–R12 do `00_CASE.md` entram em ação
   com justificativa) na Silver — no Bronze, por princípio, nada é removido.
 - **Aba `Premissas` virou tabela própria**: mesmo sendo só texto, contém as regras de negócio
   que a Diretoria usa (conversão cambial, ano fiscal) — vale a pena estar consultável em SQL.
+- **Nomes de coluna das abas de metas foram sanitizados** (ex: `Meta Ano` → `Meta_Ano`): o Delta
+  não aceita espaço em nome de coluna. Só o nome muda — o valor da célula continua intocado.

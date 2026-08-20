@@ -126,9 +126,20 @@ for meta in INGESTION_METADATA:
 xlsx_local_path = f"{RAW_PATH}/metas_comerciais.xlsx"
 year_sheets = ["Metas 2024", "Metas 2025", "Metas 2026"]
 
+
+def sanitize_column_name(col) -> str:
+    # Delta não aceita espaço nem alguns caracteres especiais em nome de coluna
+    # (ex: "Meta Ano" -> "Meta_Ano"). Isso é só o nome da coluna — o dado em si não muda.
+    col = str(col).strip()
+    for ch in [" ", ",", ";", "{", "}", "(", ")", "\n", "\t", "="]:
+        col = col.replace(ch, "_")
+    return col
+
+
 for sheet in year_sheets:
     pdf = pd.read_excel(xlsx_local_path, sheet_name=sheet, header=3)
     pdf = pdf.dropna(how="all")  # remove linhas 100% vazias, mas mantém a linha de totalização
+    pdf.columns = [sanitize_column_name(c) for c in pdf.columns]
     pdf = pdf.astype(str)
     pdf["_source_file"] = "metas_comerciais.xlsx"
     pdf["_source_sheet"] = sheet
