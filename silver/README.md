@@ -49,6 +49,24 @@ A Bronze precisa já ter rodado com sucesso (notebook `bronze/01_bronze_ingestio
   nas 234 linhas com categoria preenchida — cada subcategoria pertence a exatamente uma
   categoria), então o preenchimento é determinístico, não um chute. A coluna
   `categoria_inferida_por_subcategoria` sinaliza quais linhas passaram por essa inferência.
+- **`id_vendedor` duplicado (`V001`) não foi resolvido, foi propagado como alerta.** Diferente do
+  caso de `clientes` (CNPJ repetido em cadastros distintos, intencional), aqui é o mesmo código
+  atribuído a duas pessoas diferentes e ativas ao mesmo tempo — uma falha de unicidade de chave.
+  Escolher um dos dois arbitrariamente inventaria uma atribuição sem base; mesclar não faz
+  sentido (são pessoas diferentes). A decisão foi: marcar `id_vendedor_duplicado = true` em
+  `vendedores`, e propagar `id_vendedor_ambiguo = true` para `carteira_historica` (que também
+  referencia esse código em 21 linhas, algumas com vigência anterior à admissão de uma das duas
+  pessoas — confirmando que não dá pra desambiguar com segurança só pelos dados disponíveis).
+  **Pendência registrada para o notebook 3 (fato de vendas):** qualquer venda que aponte para um
+  `id_vendedor` ambíguo precisa ir para a quarentena (notebook 6) em vez de ser atribuída a
+  qualquer um dos dois vendedores.
+  **Impacto sobre a RLS (verificado nos dados):** `seguranca_acessos.csv` não tem coluna
+  `id_vendedor` — a ligação é só por `email`, e tanto Ricardo quanto Xenia têm entradas corretas
+  e independentes lá (perfis, região e segmento diferentes). Ou seja, a RLS por
+  região/segmento (a exigida no case) **não é afetada** pela duplicidade. O risco fica isolado
+  em funcionalidades que tentassem atribuir cliente/venda a um vendedor específico via
+  `id_vendedor` (ex: "meus clientes" de um Executivo, ou o responsável mostrado num
+  drill-through) — e essas já herdam o alerta via `id_vendedor_ambiguo`.
 - **`clientes` guarda o valor original ao lado do valor tratado** (`segmento_original`,
   `regiao_original`, `situacao_original`, `data_cadastro_original`, `razao_social_original`):
   permite auditar qualquer linha sem precisar voltar na Bronze, e é o que alimenta as células
