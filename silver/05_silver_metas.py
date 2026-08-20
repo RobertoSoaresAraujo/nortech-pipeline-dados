@@ -189,14 +189,23 @@ df_dados.filter(F.col("regiao").isNull() | F.col("segmento").isNull()).select("a
 print("Meta Ano nula após parsing (deveria ser 0 linhas):")
 df_metas_anuais.filter(F.col("meta_ano").isNull()).show()
 
-print("Meta mensal nula após parsing (deveria ser 0 linhas — célula vazia = meta não definida, mas aqui todas vêm preenchidas):")
-df_metas_mensais.filter(F.col("meta_mensal").isNull()).show()
+print("Meta mensal nula após parsing — ATENÇÃO: isso é esperado, não é erro.")
+print("O dicionário é explícito: célula vazia = meta não definida para a combinação (≠ meta zero).")
+print("Confirma se o padrão faz sentido (ex: só aparece em Governo, região menor, meses de fechamento de trimestre):")
+df_metas_mensais.filter(F.col("meta_mensal").isNull()).groupBy("regiao", "segmento", "mes").count().orderBy("regiao", "mes").show(40)
 
 print("Conferência visual de data_referencia (mês precisa estar com 2 dígitos, ex: 2024-01-01):")
 df_metas_mensais.select("ano", "mes", "data_referencia").distinct().orderBy("ano", "mes").show(36)
 
 print("Conferência: soma(meta_mensal) por ano+mês, comparado com a linha TOTAL GERAL do arquivo:")
+
+# Diagnóstico — isola em qual etapa a linha está sumindo
+print(f"  [debug] df_total_geral.count() = {df_total_geral.count()}  (esperado: 3, uma por ano)")
+df_total_geral.select("ano", "Regiao", "Jan").show(truncate=False)
+
 soma_calculada = df_metas_mensais.groupBy("ano", "mes").agg(F.sum("meta_mensal").alias("soma_calculada"))
+print(f"  [debug] soma_calculada.count() = {soma_calculada.count()}  (esperado: 36 = 3 anos x 12 meses)")
+
 total_arquivo = (
     df_total_geral.select(
         "ano",
@@ -211,6 +220,10 @@ total_arquivo = (
     .withColumn("total_arquivo", parse_valor_brl("total_raw"))
     .select("ano", "mes", "total_arquivo")
 )
+print(f"  [debug] total_arquivo.count() = {total_arquivo.count()}  (esperado: 36 = 3 anos x 12 meses)")
+print(f"  [debug] soma_calculada.dtypes = {soma_calculada.dtypes}")
+print(f"  [debug] total_arquivo.dtypes = {total_arquivo.dtypes}")
+
 soma_calculada.join(total_arquivo, ["ano", "mes"]).withColumn(
     "diferenca", F.round(F.col("soma_calculada") - F.col("total_arquivo"), 2)
 ).orderBy("ano", "mes").show(40)

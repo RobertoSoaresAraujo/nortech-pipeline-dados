@@ -38,6 +38,16 @@ Databricks (conferindo o widget `catalog`), `Run all`.
   contratos públicos") foi lida mas não virou regra automática — é contexto de negócio para
   quem for interpretar os números de Governo, não uma transformação a aplicar.
 
+## Achado: 24 células de meta mensal vêm vazias (NULL) — e isso está correto
+
+Todas em `segmento = Governo`, regiões `Norte` e `Centro-Oeste`, nos meses 3/6/9/12 (fechamento
+de trimestre), nos 3 anos. O dicionário de dados já avisava: *"Célula vazia = meta não definida
+para a combinação (≠ meta zero)"*. Mantivemos como `NULL` propositalmente — **não** convertemos
+para `0`. Isso importa porque o próprio case exige, na seção de DAX, que `% Atingimento da Meta`
+fique **em branco (não zero)** quando não houver meta definida; se tivéssemos zerado aqui, esse
+requisito ficaria impossível de cumprir depois na Gold (não haveria como distinguir "meta zero"
+de "meta não definida").
+
 ## Aba Premissas — texto completo e o que cada item confirma
 
 1. *"Metas definidas por Regiao x Segmento; nao ha desdobramento por cliente, produto ou
