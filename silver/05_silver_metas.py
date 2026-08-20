@@ -105,15 +105,17 @@ MESES_NUMERO = {"jan": 1, "fev": 2, "mar": 3, "abr": 4, "mai": 5, "jun": 6,
 # COMMAND ----------
 
 def carregar_ano(tabela_bronze: str, ano: int):
-    df = bronze(tabela_bronze).withColumn("ano", F.lit(ano))
+    df_bruto = bronze(tabela_bronze)
+    df = df_bruto.withColumn("ano", F.lit(ano))
     df = df.withColumn("regiao", normalize_regiao(F.col("Regiao"))).withColumn(
         "segmento", normalize_segmento(F.col("Segmento"))
     )
     dados = df.filter(F.col("segmento").isNotNull())  # descarta TOTAL GERAL, linha em branco, observação
-    # Comparação resistente a espaço não-separável (U+00A0) e variação de caixa — comparação
-    # exata por igualdade de string já se mostrou frágil pra esse valor específico.
-    regiao_normalizada_ascii = F.trim(F.regexp_replace(F.upper(F.col("Regiao")), "[\\s\\u00A0]+", " "))
-    total_geral = df.filter(regiao_normalizada_ascii == "TOTAL GERAL")
+
+    # Extraída a partir de uma leitura fresca do bronze (não do "df" acima) — isolar essa consulta
+    # evitou um comportamento não explicado em que o filtro não encontrava a linha quando
+    # encadeado depois das colunas geradas por UDF (regiao/segmento).
+    total_geral = df_bruto.withColumn("ano", F.lit(ano)).filter(F.upper(F.trim(F.col("Regiao"))) == "TOTAL GERAL")
     return dados, total_geral
 
 
@@ -205,14 +207,6 @@ print("Conferência: soma(meta_mensal) por ano+mês, comparado com a linha TOTAL
 # Diagnóstico — isola em qual etapa a linha está sumindo
 print(f"  [debug] df_total_geral.count() = {df_total_geral.count()}  (esperado: 3, uma por ano)")
 df_total_geral.select("ano", "Regiao", "Jan").show(truncate=False)
-
-if df_total_geral.count() == 0:
-    print("  [debug] Filtro ainda não encontrou a linha. Mostrando candidatas (Regiao contém 'TOTAL', case-insensitive)")
-    print("  [debug] e os códigos numéricos (codepoints) de cada caractere, pra achar o culpado exato:")
-    candidatas = bronze("metas_comerciais_2024").filter(F.upper(F.col("Regiao")).contains("TOTAL")).select("Regiao").collect()
-    for row in candidatas:
-        texto = row["Regiao"]
-        print(f"    texto={texto!r}  len={len(texto)}  codepoints={[hex(ord(c)) for c in texto]}")
 
 soma_calculada = df_metas_mensais.groupBy("ano", "mes").agg(F.sum("meta_mensal").alias("soma_calculada"))
 print(f"  [debug] soma_calculada.count() = {soma_calculada.count()}  (esperado: 36 = 3 anos x 12 meses)")
