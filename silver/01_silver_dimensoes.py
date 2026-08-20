@@ -1,8 +1,4 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "5"
-# ///
 # MAGIC %md
 # MAGIC # Silver — Dimensões simples
 # MAGIC
@@ -123,6 +119,25 @@ def standardize_razao_social(v):
         base = w.title()
         palavras.append(RAZAO_SOCIAL_ACRONYM_FIX.get(base, base))
     return " ".join(palavras)
+
+
+# subcategoria -> categoria é uma relação 1:1 em todo o arquivo produtos.csv (confirmado nas
+# 234 linhas que têm categoria preenchida: cada subcategoria aparece com uma única categoria).
+# Usado como fallback só para as 3 linhas onde categoria veio em branco na origem.
+CATEGORIA_POR_SUBCATEGORIA = {
+    "Bombas": "Hidraulica", "Conexoes": "Hidraulica", "Mangueiras": "Hidraulica",
+    "CLP": "Automacao", "Inversores": "Automacao", "Sensores": "Automacao",
+    "Cabos": "Eletrica", "Iluminacao": "Eletrica", "Quadros": "Eletrica",
+    "Eletricas": "Ferramentas", "Manuais": "Ferramentas", "Pneumaticas": "Ferramentas",
+    "Protecao Cabeca": "EPI", "Protecao Maos": "EPI", "Protecao Respiratoria": "EPI",
+}
+
+
+@F.udf(returnType=StringType())
+def categoria_from_subcategoria(subcategoria):
+    if subcategoria is None:
+        return None
+    return CATEGORIA_POR_SUBCATEGORIA.get(str(subcategoria).strip())
 
 
 @F.udf(returnType=StringType())
@@ -257,7 +272,7 @@ df_produtos = (
         F.trim("id_produto").alias("id_produto"),
         F.upper(F.trim("id_produto")).alias("id_produto_chave"),  # chave robusta p/ join com vendas_2026 (perde caixa)
         F.trim("descricao").alias("descricao"),
-        F.trim("categoria").alias("categoria"),
+        F.trim("categoria").alias("categoria_original"),
         F.trim("subcategoria").alias("subcategoria"),
         F.trim("linha").alias("linha"),
         F.trim("unidade").alias("unidade"),
@@ -265,8 +280,19 @@ df_produtos = (
         parse_ptbr_decimal("preco_lista").alias("preco_lista"),
         (F.trim("flag_descontinuado") == "1").alias("descontinuado"),
     )
+    .withColumn("categoria_inferida_por_subcategoria",
+                F.col("categoria_original").isNull() & F.col("subcategoria").isNotNull())
+    .withColumn("categoria", F.coalesce(F.col("categoria_original"), categoria_from_subcategoria(F.col("subcategoria"))))
 )
 save_silver(df_produtos, "produtos")
+
+# COMMAND ----------
+
+print("Produtos com categoria inferida a partir da subcategoria (fallback aplicado):")
+df_produtos.filter(F.col("categoria_inferida_por_subcategoria")).select("id_produto", "subcategoria", "categoria").show(truncate=False)
+
+print("Produtos ainda sem categoria após o fallback (deveria ser 0 linhas):")
+df_produtos.filter(F.col("categoria").isNull()).select("id_produto", "subcategoria").show(truncate=False)
 
 # COMMAND ----------
 

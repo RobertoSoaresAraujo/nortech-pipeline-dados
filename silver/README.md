@@ -44,6 +44,11 @@ A Bronze precisa já ter rodado com sucesso (notebook `bronze/01_bronze_ingestio
   oficial de estados por região (IBGE) como fallback, em vez de deixar a região nula ou de
   descartar essas linhas. A coluna `regiao_inferida_por_uf` sinaliza exatamente quais linhas
   passaram por essa inferência, para não esconder a decisão.
+- **`produtos.categoria` vazia foi inferida a partir da `subcategoria`** em 3 linhas (`PRD-0056`,
+  `PRD-0194`, `PRD-0219`). A relação subcategoria→categoria é 1:1 em todo o arquivo (confirmado
+  nas 234 linhas com categoria preenchida — cada subcategoria pertence a exatamente uma
+  categoria), então o preenchimento é determinístico, não um chute. A coluna
+  `categoria_inferida_por_subcategoria` sinaliza quais linhas passaram por essa inferência.
 - **`clientes` guarda o valor original ao lado do valor tratado** (`segmento_original`,
   `regiao_original`, `situacao_original`, `data_cadastro_original`, `razao_social_original`):
   permite auditar qualquer linha sem precisar voltar na Bronze, e é o que alimenta as células
