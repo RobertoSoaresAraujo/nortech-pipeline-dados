@@ -1,8 +1,4 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "5"
-# ///
 # MAGIC %md
 # MAGIC # Silver — Dimensões simples
 # MAGIC
@@ -19,9 +15,6 @@
 # MAGIC fechado.
 
 # COMMAND ----------
-
--- Note: Run this notebook on a Spark cluster (Standard or Serverless), not a SQL warehouse
--- SQL warehouses don't support Python/PySpark code
 
 dbutils.widgets.text("catalog", "workspace", "Catálogo Unity Catalog")
 CATALOG = dbutils.widgets.get("catalog")
