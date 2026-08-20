@@ -32,3 +32,16 @@ Databricks (conferindo o widget `catalog`), `Run all`.
 - **`status_pedido_origem` é mantido na tabela** para dar visibilidade a um caso estranho (mas
   não necessariamente um erro): devolução referenciando um pedido que consta como Cancelado na
   origem. A validação do notebook mostra se isso ocorre.
+- **129 devoluções órfãs na prática, não as 120 esperadas pela leitura simples do dicionário.**
+  Decompondo: 120 são de fato pedidos de 2023 (fora do período coberto); as outras 9 referenciam
+  um `id_pedido+item` que **existe** no CSV bruto, mas foi excluído de `silver.vendas` por ser
+  inválido (R12) ou por ser uma das 420 duplicatas exatas removidas em 2025. Tratar as duas como
+  "órfã" é a decisão correta — não faz sentido valorizar uma devolução com o preço de uma venda
+  que o próprio pipeline já rejeitou por não confiar nela.
+- **31 devoluções referenciam pedidos que já constavam como `Cancelado` na origem.** Isso é
+  logicamente inconsistente por si só (um pedido cancelado não deveria gerar devolução — nada
+  foi entregue), mas apareceu nos dados. Como o pedido cancelado já contribui **zero** de receita
+  (R4), deixar a devolução dele gerar uma "receita a subtrair" na Gold criaria receita negativa
+  fantasma. Corrigido: `receita_devolucao_bruta` e `receita_devolucao_liquida` são zeradas nesses
+  casos (mesma lógica de R4), e a linha fica sinalizada com `devolucao_de_pedido_cancelado = true`
+  — nada é escondido, só não impacta a receita indevidamente.

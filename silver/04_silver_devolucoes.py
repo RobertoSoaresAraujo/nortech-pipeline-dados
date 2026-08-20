@@ -140,12 +140,18 @@ df_devolucoes = (
         F.col("pedido_origem_encontrado")
         & (F.col("quantidade_devolvida") > F.col("quantidade_faturada_origem")),
     )
+    .withColumn("devolucao_de_pedido_cancelado", F.col("status_pedido_origem") == "Cancelado")
     .withColumn(
         "receita_devolucao_bruta",
         F.when(
-            F.col("pedido_origem_encontrado"),
+            F.col("pedido_origem_encontrado") & ~F.col("devolucao_de_pedido_cancelado"),
             F.col("quantidade_devolvida") * F.col("valor_unitario_origem") * F.col("taxa_cambio_origem"),
-        ),  # NULL quando órfã — não dá pra valorizar sem o item de origem
+        )
+        # NULL quando órfã (sem preço de referência) ou 0.0 quando a venda de origem já era
+        # cancelada — o pedido cancelado nunca gerou receita (R4), então a devolução dele
+        # também não pode gerar "receita negativa" na Gold. Sem essa distinção, ficaríamos
+        # subtraindo receita que nunca existiu.
+        .when(F.col("devolucao_de_pedido_cancelado"), F.lit(0.0)),
     )
     .withColumn(
         "receita_devolucao_liquida",
@@ -184,6 +190,26 @@ print(f"OK  {target_orfas}  ({df_devolucoes_orfas.count()} linhas)")
 print("Devoluções com pedido de origem encontrado vs órfãs:")
 df_devolucoes.groupBy("pedido_origem_encontrado").count().show()
 
+print("Decomposição das órfãs: pré-2024 de verdade vs excluídas do fato por R12/duplicata")
+print("(ambas contam como órfã pra R5, mas por motivos diferentes — útil pra Página 3 do dashboard):")
+df_pedidos_brutos = (
+    bronze("vendas_2024").select(F.trim("ID_PEDIDO").alias("id_pedido_bruto"), F.trim("ITEM").cast("int").alias("item_bruto"))
+    .unionByName(bronze("vendas_2025").select(F.trim("id_pedido").alias("id_pedido_bruto"), F.trim("item").cast("int").alias("item_bruto")))
+    .unionByName(bronze("vendas_2026").select(F.trim("id_pedido").alias("id_pedido_bruto"), F.trim("item").cast("int").alias("item_bruto")))
+    .distinct()
+)
+df_orfas_detalhe = (
+    df_devolucoes_orfas
+    .join(
+        df_pedidos_brutos,
+        (df_devolucoes_orfas.id_pedido_origem == df_pedidos_brutos.id_pedido_bruto)
+        & (df_devolucoes_orfas.item == df_pedidos_brutos.item_bruto),
+        "left",
+    )
+    .withColumn("existe_no_bruto_mas_foi_excluida", F.col("id_pedido_bruto").isNotNull())
+)
+df_orfas_detalhe.groupBy("existe_no_bruto_mas_foi_excluida").count().show()
+
 print("Reconciliação: bronze == total (nenhuma devolução deve ter sumido):")
 n_bronze = bronze("devolucoes").count()
 n_silver = df_devolucoes.count()
@@ -194,10 +220,10 @@ df_devolucoes.filter(F.col("quantidade_excede_faturado")).select(
     "id_devolucao", "id_pedido_origem", "item", "quantidade_devolvida", "quantidade_faturada_origem"
 ).show(truncate=False)
 
-print("Devoluções referenciando pedido de origem CANCELADO (situação estranha — vale investigar se aparecer):")
-df_devolucoes.filter(F.col("status_pedido_origem") == "Cancelado").select(
-    "id_devolucao", "id_pedido_origem", "item", "status_pedido_origem"
-).show(truncate=False)
+print("Devoluções referenciando pedido de origem CANCELADO (receita_devolucao_bruta deve ser 0.0 em todas):")
+df_devolucoes.filter(F.col("devolucao_de_pedido_cancelado")).select(
+    "id_devolucao", "id_pedido_origem", "item", "status_pedido_origem", "receita_devolucao_bruta", "receita_devolucao_liquida"
+).show(40, truncate=False)
 
 print("Amostra de devoluções órfãs (para conferência):")
 df_devolucoes_orfas.orderBy("data_devolucao").show(10, truncate=False)
