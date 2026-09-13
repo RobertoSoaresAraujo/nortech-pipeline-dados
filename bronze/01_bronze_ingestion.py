@@ -19,10 +19,12 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog", "workspace", "Catálogo Unity Catalog")
-dbutils.widgets.text("raw_volume_path", "/Volumes/workspace/bronze/raw_files", "Caminho dos arquivos brutos no Volume")
 
 CATALOG = dbutils.widgets.get("catalog")
-RAW_PATH = dbutils.widgets.get("raw_volume_path")
+# Caminho do Volume calculado a partir do catalog, não mais um parâmetro independente —
+# dois parâmetros separados (catalog e raw_volume_path) causaram confusão repetida na
+# orquestração via Job (um sendo atualizado, o outro ficando com o valor antigo "workspace").
+RAW_PATH = f"/Volumes/{CATALOG}/bronze/raw_files"
 BRONZE_SCHEMA = "bronze"
 
 # COMMAND ----------

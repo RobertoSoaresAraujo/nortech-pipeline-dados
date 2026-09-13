@@ -9,6 +9,13 @@
    `feriados.csv`, `metas_comerciais.xlsx`, `produtos.csv`, `seguranca_acessos.csv`,
    `vendas_2024.csv`, `vendas_2025.csv`, `vendas_2026.csv`, `vendedores.csv`.
 
+**Atualização**: o caminho do Volume não é mais um parâmetro separado — é calculado a partir do
+widget `catalog` (`/Volumes/{catalog}/bronze/raw_files`). Só existe um parâmetro pra configurar
+agora. Isso resolveu um bug real de orquestração: no Databricks Workflows, o parâmetro `catalog`
+do Job estava sendo aplicado corretamente, mas `raw_volume_path` (um segundo parâmetro
+independente, com seu próprio valor padrão `/Volumes/workspace/...`) continuava usando o valor
+antigo — os dois nunca estavam sincronizados de verdade.
+
 ## Como rodar
 
 1. Abra `01_bronze_ingestion.py` no Databricks (via Repos, já sincronizado com o GitHub).
